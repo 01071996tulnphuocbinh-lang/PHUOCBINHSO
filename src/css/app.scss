@@ -1,0 +1,88 @@
+:root {
+    --pb-bg: #f3f7fb;
+    --pb-bg-soft: #eef3f9;
+    --pb-card: #ffffff;
+    --pb-text: #0f172a;
+    --pb-subtext: #5b6472;
+    --pb-primary: #046dd6;
+    --pb-primary-soft: #e8f2ff;
+    --pb-border: #e7edf5;
+    --pb-radius-lg: 20px;
+    --pb-radius-md: 14px;
+    --pb-shadow-1: 0 8px 20px rgba(12, 31, 66, 0.08);
+    --pb-shadow-2: 0 2px 8px rgba(12, 31, 66, 0.06);
+}
+
+html,
+body {
+    background: radial-gradient(
+            circle at 20% 0%,
+            #f9fcff 0%,
+            transparent 40%
+        ),
+        var(--pb-bg);
+    color: var(--pb-text);
+}
+
+#app {
+    min-height: 100vh;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+img,
+svg {
+    max-width: 100%;
+}
+
+.section-container {
+    padding: 16px;
+    background: var(--pb-card);
+    border: 1px solid var(--pb-border);
+    border-radius: var(--pb-radius-md);
+    box-shadow: var(--pb-shadow-2);
+    margin-bottom: 20px;
+}
+
+.zaui-tabs-tabbar-item {
+    &:focus,
+    &:active {
+        outline: none;
+    }
+}
+
+.zaui-snackbar {
+    &-info {
+        color: #767a7f;
+    }
+}
+
+.zaui-sheet-content,
+.zaui-list-item,
+.zaui-btn {
+    transition: all 0.2s ease;
+}
+
+/* Giới hạn chiều cao menu con của Select */
+.zaui-select-options {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+@media (max-width: 420px) {
+    :root {
+        --pb-radius-lg: 18px;
+        --pb-radius-md: 12px;
+        --pb-shadow-1: 0 6px 16px rgba(12, 31, 66, 0.08);
+        --pb-shadow-2: 0 2px 6px rgba(12, 31, 66, 0.05);
+    }
+
+    .section-container {
+        padding: 12px;
+        margin-bottom: 14px;
+    }
+}

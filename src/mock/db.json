@@ -1,0 +1,59 @@
+{
+    "organization": {
+        "officialAccounts": [
+
+            {
+                "id": "700942938303729847",
+                "name": "Cổng Hành chính công tỉnh",
+                "description": "Thủ tục hành chính",
+                "avatar": "https://s160-ava-talk.zadn.vn/1/1/5/6/7/160/5682976c0735c9ffc7861d0c4d52d76e.jpg"
+            },
+            {
+                "id": "1444775550859789178",
+                "name": "UBND Phường Phước Bình",
+                "description": "Thủ tục hành chính",
+                "avatar": "https://s160-ava-talk.zadn.vn/f/0/5/d/1/160/6f3cd4cf049446dd95df909d9b635f4f.jpg"
+            }
+        ],
+        "id": "org1",
+        "logoUrl": "",
+        "description": "Hệ thống thông tin chính quyền điện tử Phước Bình",
+        "name": "Chính quyền Phước Bình"
+    },
+    "profiles": [
+        {
+            "name": "Nguyễn Văn A",
+            "dueDate": "2024-12-31T10:00:00Z",
+            "profileCode": "PB-9999",
+            "notifications": []
+        }
+    ],
+    "schedule-appointment": {},
+    "feedbacks": {
+        "data": [],
+        "current": 0,
+        "total": 0,
+        "pageSize": 10
+    },
+    "feedbackTypes": [
+        { "id": 1, "title": "An ninh trật tự" },
+        { "id": 2, "title": "Thủ tục hành chính" }
+    ],
+    "articles": [
+        {
+            "author": "BTT",
+            "title": "Chào mừng bạn đến với Phước Bình Số",
+            "desc": "Ứng dụng cung cấp các tiện ích hành chính công",
+            "link": "https://mini.zalo.me/",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "thumb": "/assets/thumb.png",
+            "id": "article1"
+        }
+    ],
+    "guidelines": {
+        "data": [],
+        "page": 1,
+        "total": 0,
+        "currentPageSize": 10
+    }
+}

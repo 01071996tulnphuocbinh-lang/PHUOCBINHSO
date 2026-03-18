@@ -1,0 +1,34 @@
+{
+    "app": {
+        "title": "DỊCH VỤ CÔNG",
+        "headerColor": "",
+        "textColor": "white",
+        "statusBarColor": "#046DD6",
+        "leftButton": "back",
+        "actionBarHidden": true,
+        "hideIOSSafeAreaBottom": true,
+        "statusBar": "transparent"
+    },
+    "permissions": {
+        "scope.userInfo": true,
+        "scope.userPhonenumber": false,
+        "scope.oaFollow": {
+            "usageDescription": "Ứng dụng cần quyền quan tâm OA để gửi thông báo về thủ tục hành chính cho bạn."
+        }
+    },
+    "listURLs": [
+        "https://vcdn-shield.zalo.me",
+        "https://stc-zaloprofile.zdn.vn",
+        "https://hcmcp.hochiminhcity.gov.vn",
+        "https://phuocbinh.dongnai.gov.vn"
+    ],
+    "listSDK": [],
+    "debug": false,
+    "listCSS": [],
+    "listSyncJS": [],
+    "listAsyncJS": [],
+    "pages": [],
+    "template": {
+        "name": "zaui-egovernment"
+    }
+}

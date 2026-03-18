@@ -1,0 +1,104 @@
+import { Articles, Organization } from "@dts";
+import { serviceContainer } from "application/services";
+import {
+    GetArticlesParams,
+    GetOrganizationParams,
+} from "domain/repositories";
+import { StateCreator } from "zustand";
+
+export interface OrganizationSlice {
+    organization?: Organization;
+    gettingOrganization?: boolean;
+    gettingArticles?: boolean;
+    articles?: Articles;
+    followOA: (params: { id: string }) => Promise<void>;
+    getOrganization: (params: GetOrganizationParams) => Promise<void>;
+    getArticles: (params: GetArticlesParams) => Promise<void>;
+}
+
+const organizationSlice: StateCreator<OrganizationSlice> = (set, get) => ({
+    organization: undefined,
+
+    gettingOrganization: false,
+    gettingProfile: false,
+
+    followOA: async (params: { id: string }) => {
+        try {
+            await serviceContainer.followOAUseCase.execute(params);
+            const org = get().organization;
+
+            if (org) {
+                org.officialAccounts = org.officialAccounts?.map(item => {
+                    if (item.oaId !== params.id) {
+                        return item;
+                    }
+                    return {
+                        ...item,
+                        follow: true,
+                    };
+                });
+                set(state => ({
+                    ...state,
+                    organization: org,
+                    followingOA: false,
+                }));
+            }
+        } catch (err) {
+            console.log("err: ", err);
+        }
+    },
+    getOrganization: async (params: GetOrganizationParams) => {
+        try {
+            set(state => ({
+                ...state,
+                gettingOrganization: true,
+            }));
+            const org = await serviceContainer.getOrganizationUseCase.execute(
+                params,
+            );
+
+            set(state => ({
+                ...state,
+                organization: org,
+            }));
+        } finally {
+            set(state => ({
+                ...state,
+                gettingOrganization: false,
+            }));
+        }
+    },
+    getArticles: async (params: GetArticlesParams) => {
+        try {
+            set(state => ({
+                ...state,
+                gettingArticles: true,
+            }));
+            const articles = await serviceContainer.getArticlesUseCase.execute(
+                params,
+            );
+            set(state => ({
+                ...state,
+
+                gettingArticles: false,
+
+                articles: {
+                    ...articles,
+                    articles: [
+                        ...(state.articles?.articles || []),
+                        ...articles.articles,
+                    ],
+                    currentPageSize: articles.currentPageSize,
+                    page: articles.page,
+                },
+            }));
+        } catch (err) {
+            set(state => ({
+                ...state,
+                gettingArticles: false,
+            }));
+        }
+    },
+});
+
+export default organizationSlice;
