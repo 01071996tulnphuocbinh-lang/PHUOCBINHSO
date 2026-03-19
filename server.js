@@ -30,7 +30,7 @@ app.post("/api/get-phone", async (req, res) => {
     }
 
     const bearerToken = String(req.headers?.authorization || "").replace(/^Bearer\s+/i, "");
-    const zaloAccessToken =
+    const tokenFromRequest =
       req.body?.ZALO_ACCESS_TOKEN ||
       req.body?.zalo_access_token ||
       req.body?.zaloAccessToken ||
@@ -39,8 +39,16 @@ app.post("/api/get-phone", async (req, res) => {
       req.headers?.["x-zalo-access-token"] ||
       req.headers?.["X-ZALO-ACCESS-TOKEN"] ||
       bearerToken ||
-      process.env.ZALO_ACCESS_TOKEN;
-    if (!zaloAccessToken) {
+      "";
+
+    // Ưu tiên token backend cấu hình sẵn (ổn định hơn), fallback token client gửi lên.
+    const accessTokenCandidates = [process.env.ZALO_ACCESS_TOKEN, tokenFromRequest]
+      .filter(Boolean)
+      .map(v => String(v).trim())
+      .filter(Boolean)
+      .filter((v, idx, arr) => arr.indexOf(v) === idx);
+
+    if (accessTokenCandidates.length === 0) {
       return res.status(500).json({
         success: false,
         error: 1,
@@ -48,45 +56,71 @@ app.post("/api/get-phone", async (req, res) => {
       });
     }
 
-    const zaloResponse = await axios.get("https://graph.zalo.me/v2.0/me/info", {
-      params: {
-        access_token: zaloAccessToken,
-        code: token,
-      },
-      timeout: 10000,
-    });
+    const diagnostics = [];
+    for (const zaloAccessToken of accessTokenCandidates) {
+      try {
+        const zaloResponse = await axios.get("https://graph.zalo.me/v2.0/me/info", {
+          params: {
+            access_token: zaloAccessToken,
+            code: token,
+          },
+          timeout: 10000,
+        });
 
-    const data = zaloResponse.data || {};
-    const phone =
-      data.phone ||
-      data.number ||
-      data.phone_number ||
-      data.data?.phone ||
-      data.data?.number ||
-      data.data?.phone_number ||
-      null;
+        const data = zaloResponse.data || {};
+        const phone =
+          data.phone ||
+          data.number ||
+          data.phone_number ||
+          data.data?.phone ||
+          data.data?.number ||
+          data.data?.phone_number ||
+          null;
 
-    if (!phone) {
-      return res.status(404).json({
-        success: false,
-        error: 1,
-        message: "Phone not found",
-      });
+        diagnostics.push({
+          source: zaloAccessToken === process.env.ZALO_ACCESS_TOKEN ? "env" : "request",
+          status: zaloResponse.status,
+          hasPhone: !!phone,
+          upstreamData: data,
+        });
+
+        if (!phone) {
+          continue;
+        }
+
+        const phoneText = String(phone);
+        return res.json({
+          success: true,
+          error: 0,
+          phone: phoneText,
+          data: {
+            phoneNumber: phoneText,
+            phone: phoneText,
+            number: phoneText,
+          },
+          miniAppId,
+          diagnostics,
+        });
+      } catch (err) {
+        diagnostics.push({
+          source: zaloAccessToken === process.env.ZALO_ACCESS_TOKEN ? "env" : "request",
+          status: err.response?.status || 500,
+          hasPhone: false,
+          upstreamData: err.response?.data || null,
+          message:
+            err.response?.data?.error_description ||
+            err.response?.data?.message ||
+            err.message ||
+            "Upstream error",
+        });
+      }
     }
 
-    const phoneText = String(phone);
-
-    // Trả cả format cũ + format frontend đang parse
-    return res.json({
-      success: true,
-      error: 0,
-      phone: phoneText,
-      data: {
-        phoneNumber: phoneText,
-        phone: phoneText,
-        number: phoneText,
-      },
-      miniAppId,
+    return res.status(404).json({
+      success: false,
+      error: 1,
+      message: "Phone not found",
+      diagnostics,
     });
   } catch (error) {
     const message =
