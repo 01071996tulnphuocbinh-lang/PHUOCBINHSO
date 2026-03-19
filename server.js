@@ -20,6 +20,8 @@ app.post("/api/get-phone", async (req, res) => {
       req.body?.phoneToken ||
       req.body?.code; // hỗ trợ token/phoneToken/code
     const miniAppId = req.body?.miniAppId || "";
+    const appId = String(process.env.ZALO_APP_ID || miniAppId || "").trim();
+    const secretKey = String(process.env.ZALO_SECRET_KEY || "").trim();
 
     if (!token || typeof token !== "string" || !token.trim()) {
       return res.status(400).json({
@@ -48,6 +50,8 @@ app.post("/api/get-phone", async (req, res) => {
           params: {
             access_token: zaloAccessToken,
             code: token,
+            ...(appId ? { app_id: appId } : {}),
+            ...(secretKey ? { secret_key: secretKey } : {}),
           },
           timeout: 10000,
         });
@@ -66,6 +70,8 @@ app.post("/api/get-phone", async (req, res) => {
           source: "env",
           status: zaloResponse.status,
           hasPhone: !!phone,
+          hasAppId: !!appId,
+          hasSecretKey: !!secretKey,
           upstreamData: data,
         });
 
@@ -91,6 +97,8 @@ app.post("/api/get-phone", async (req, res) => {
           source: "env",
           status: err.response?.status || 500,
           hasPhone: false,
+          hasAppId: !!appId,
+          hasSecretKey: !!secretKey,
           upstreamData: err.response?.data || null,
           message:
             err.response?.data?.error_description ||
