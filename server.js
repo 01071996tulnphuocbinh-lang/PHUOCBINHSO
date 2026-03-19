@@ -15,7 +15,10 @@ app.get("/", (_req, res) => {
 
 app.post("/api/get-phone", async (req, res) => {
   try {
-    const token = req.body?.token || req.body?.code; // hỗ trợ cả token/code
+    const token =
+      req.body?.token ||
+      req.body?.phoneToken ||
+      req.body?.code; // hỗ trợ token/phoneToken/code
     const miniAppId = req.body?.miniAppId || "";
 
     if (!token || typeof token !== "string" || !token.trim()) {
@@ -26,7 +29,17 @@ app.post("/api/get-phone", async (req, res) => {
       });
     }
 
-    const zaloAccessToken = process.env.ZALO_ACCESS_TOKEN;
+    const bearerToken = String(req.headers?.authorization || "").replace(/^Bearer\s+/i, "");
+    const zaloAccessToken =
+      req.body?.ZALO_ACCESS_TOKEN ||
+      req.body?.zalo_access_token ||
+      req.body?.zaloAccessToken ||
+      req.body?.access_token ||
+      req.body?.accessToken ||
+      req.headers?.["x-zalo-access-token"] ||
+      req.headers?.["X-ZALO-ACCESS-TOKEN"] ||
+      bearerToken ||
+      process.env.ZALO_ACCESS_TOKEN;
     if (!zaloAccessToken) {
       return res.status(500).json({
         success: false,
@@ -70,6 +83,8 @@ app.post("/api/get-phone", async (req, res) => {
       phone: phoneText,
       data: {
         phoneNumber: phoneText,
+        phone: phoneText,
+        number: phoneText,
       },
       miniAppId,
     });
