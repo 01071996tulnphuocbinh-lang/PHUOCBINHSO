@@ -29,30 +29,15 @@ app.post("/api/get-phone", async (req, res) => {
       });
     }
 
-    const bearerToken = String(req.headers?.authorization || "").replace(/^Bearer\s+/i, "");
-    const tokenFromRequest =
-      req.body?.ZALO_ACCESS_TOKEN ||
-      req.body?.zalo_access_token ||
-      req.body?.zaloAccessToken ||
-      req.body?.access_token ||
-      req.body?.accessToken ||
-      req.headers?.["x-zalo-access-token"] ||
-      req.headers?.["X-ZALO-ACCESS-TOKEN"] ||
-      bearerToken ||
-      "";
-
-    // Ưu tiên token backend cấu hình sẵn (ổn định hơn), fallback token client gửi lên.
-    const accessTokenCandidates = [process.env.ZALO_ACCESS_TOKEN, tokenFromRequest]
-      .filter(Boolean)
-      .map(v => String(v).trim())
-      .filter(Boolean)
-      .filter((v, idx, arr) => arr.indexOf(v) === idx);
+    // Bắt buộc dùng token backend cấu hình sẵn để tránh nhầm session token từ client.
+    const envAccessToken = String(process.env.ZALO_ACCESS_TOKEN || "").trim();
+    const accessTokenCandidates = envAccessToken ? [envAccessToken] : [];
 
     if (accessTokenCandidates.length === 0) {
       return res.status(500).json({
         success: false,
         error: 1,
-        message: "Missing ZALO_ACCESS_TOKEN",
+        message: "Missing ZALO_ACCESS_TOKEN in server environment",
       });
     }
 
@@ -78,7 +63,7 @@ app.post("/api/get-phone", async (req, res) => {
           null;
 
         diagnostics.push({
-          source: zaloAccessToken === process.env.ZALO_ACCESS_TOKEN ? "env" : "request",
+          source: "env",
           status: zaloResponse.status,
           hasPhone: !!phone,
           upstreamData: data,
@@ -103,7 +88,7 @@ app.post("/api/get-phone", async (req, res) => {
         });
       } catch (err) {
         diagnostics.push({
-          source: zaloAccessToken === process.env.ZALO_ACCESS_TOKEN ? "env" : "request",
+          source: "env",
           status: err.response?.status || 500,
           hasPhone: false,
           upstreamData: err.response?.data || null,
