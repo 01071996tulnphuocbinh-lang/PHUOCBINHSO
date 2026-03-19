@@ -13,6 +13,102 @@ app.get("/", (_req, res) => {
   res.send("Server running");
 });
 
+const pickString = value => {
+  const text = String(value || "").trim();
+  return text || "";
+};
+
+const maskToken = value => {
+  const text = pickString(value);
+  if (!text) return "";
+  if (text.length <= 14) return text;
+  return `${text.slice(0, 10)}...${text.slice(-4)}`;
+};
+
+const exchangeOAToken = async ({ appId, secretKey, grantType, code, refreshToken }) => {
+  const body = new URLSearchParams({
+    app_id: appId,
+    grant_type: grantType,
+    secret_key: secretKey,
+    ...(grantType === "authorization_code" ? { code } : {}),
+    ...(grantType === "refresh_token" ? { refresh_token: refreshToken } : {}),
+  }).toString();
+
+  const response = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", body, {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    timeout: 15000,
+  });
+
+  return response.data || {};
+};
+
+app.post("/api/oa/access-token", async (req, res) => {
+  try {
+    const appId = pickString(req.body?.appId || process.env.ZALO_APP_ID);
+    const secretKey = pickString(req.body?.secretKey || process.env.ZALO_SECRET_KEY);
+    const grantType = pickString(req.body?.grantType || "authorization_code");
+    const code = pickString(req.body?.code);
+    const refreshToken = pickString(req.body?.refreshToken);
+
+    if (!appId) {
+      return res.status(400).json({ success: false, error: 1, message: "Missing appId" });
+    }
+    if (!secretKey) {
+      return res.status(400).json({ success: false, error: 1, message: "Missing secretKey" });
+    }
+    if (grantType !== "authorization_code" && grantType !== "refresh_token") {
+      return res.status(400).json({
+        success: false,
+        error: 1,
+        message: "grantType must be authorization_code or refresh_token",
+      });
+    }
+    if (grantType === "authorization_code" && !code) {
+      return res.status(400).json({ success: false, error: 1, message: "Missing code" });
+    }
+    if (grantType === "refresh_token" && !refreshToken) {
+      return res.status(400).json({ success: false, error: 1, message: "Missing refreshToken" });
+    }
+
+    const data = await exchangeOAToken({
+      appId,
+      secretKey,
+      grantType,
+      code,
+      refreshToken,
+    });
+
+    const accessToken = pickString(data.access_token);
+    const newRefreshToken = pickString(data.refresh_token);
+
+    return res.json({
+      success: true,
+      error: 0,
+      message: "OK",
+      data: {
+        ...data,
+        access_token_masked: maskToken(accessToken),
+        refresh_token_masked: maskToken(newRefreshToken),
+      },
+      note: "Hãy copy access_token để set vào ZALO_ACCESS_TOKEN trên Render.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 1,
+      message:
+        error.response?.data?.error_description ||
+        error.response?.data?.message ||
+        error.message ||
+        "Token exchange failed",
+      details: error.response?.data || null,
+    });
+  }
+});
+
 app.post("/api/get-phone", async (req, res) => {
   try {
     const token =
