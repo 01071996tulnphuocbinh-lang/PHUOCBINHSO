@@ -175,6 +175,85 @@ app.post("/api/oa/access-token", async (req, res) => {
   }
 });
 
+app.post("/api/debug/zalo-check", async (req, res) => {
+  try {
+    const appId = pickString(req.body?.appId || process.env.ZALO_APP_ID);
+    const secretKey = pickString(req.body?.secretKey || process.env.ZALO_SECRET_KEY);
+    const refreshToken = pickString(req.body?.refreshToken || process.env.ZALO_REFRESH_TOKEN);
+
+    const diagnostics = {
+      hasAppId: !!appId,
+      hasSecretKey: !!secretKey,
+      hasRefreshToken: !!refreshToken,
+      appId,
+      now: new Date().toISOString(),
+      oauthCheck: null,
+      ipCheck: null,
+    };
+
+    if (appId && secretKey && refreshToken) {
+      try {
+        const oauthPayload = await exchangeOAToken({
+          appId,
+          secretKey,
+          grantType: "refresh_token",
+          refreshToken,
+        });
+        diagnostics.oauthCheck = {
+          ok: !!pickString(oauthPayload?.access_token),
+          error: oauthPayload?.error || 0,
+          error_name: oauthPayload?.error_name || "",
+          error_description: oauthPayload?.error_description || "",
+          access_token_masked: maskToken(oauthPayload?.access_token),
+          refresh_token_masked: maskToken(oauthPayload?.refresh_token),
+        };
+      } catch (oauthErr) {
+        diagnostics.oauthCheck = {
+          ok: false,
+          status: oauthErr?.response?.status || 500,
+          payload: oauthErr?.response?.data || null,
+          message:
+            oauthErr?.response?.data?.error_description ||
+            oauthErr?.response?.data?.message ||
+            oauthErr?.message ||
+            "OAuth check failed",
+        };
+      }
+    } else {
+      diagnostics.oauthCheck = {
+        ok: false,
+        message: "Missing appId/secretKey/refreshToken",
+      };
+    }
+
+    try {
+      const ipRes = await axios.get("https://api.ipify.org?format=json", { timeout: 8000 });
+      diagnostics.ipCheck = {
+        ok: true,
+        ip: ipRes?.data?.ip || "",
+      };
+    } catch (ipErr) {
+      diagnostics.ipCheck = {
+        ok: false,
+        message: ipErr?.message || "IP check failed",
+      };
+    }
+
+    return res.json({
+      success: true,
+      error: 0,
+      message: "OK",
+      diagnostics,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 1,
+      message: error?.message || "Debug check failed",
+    });
+  }
+});
+
 app.post("/api/get-phone", async (req, res) => {
   try {
     const token =
