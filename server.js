@@ -18,6 +18,19 @@ const pickString = value => {
   return text || "";
 };
 
+const isTokenInvalidError = payload => {
+  const code = Number(payload?.error);
+  const message = String(payload?.message || "").toLowerCase();
+  return (
+    code === 452 ||
+    code === -216 ||
+    message.includes("session key invalid") ||
+    message.includes("access token") ||
+    message.includes("token invalid") ||
+    message.includes("invalid token")
+  );
+};
+
 const maskToken = value => {
   const text = pickString(value);
   if (!text) return "";
@@ -43,6 +56,56 @@ const exchangeOAToken = async ({ appId, secretKey, grantType, code, refreshToken
   });
 
   return response.data || {};
+};
+
+const tokenState = {
+  accessToken: pickString(process.env.ZALO_ACCESS_TOKEN),
+  refreshToken: pickString(process.env.ZALO_REFRESH_TOKEN),
+  refreshedAt: "",
+};
+
+const refreshOATokenIfNeeded = async ({ appId, secretKey, force = false }) => {
+  if (!force && tokenState.accessToken) {
+    return { refreshed: false, accessToken: tokenState.accessToken };
+  }
+
+  if (!tokenState.refreshToken) {
+    return {
+      refreshed: false,
+      accessToken: tokenState.accessToken,
+      error: "Missing ZALO_REFRESH_TOKEN in server environment",
+    };
+  }
+
+  const data = await exchangeOAToken({
+    appId,
+    secretKey,
+    grantType: "refresh_token",
+    refreshToken: tokenState.refreshToken,
+  });
+
+  const newAccessToken = pickString(data.access_token);
+  const newRefreshToken = pickString(data.refresh_token);
+
+  if (!newAccessToken) {
+    return {
+      refreshed: false,
+      accessToken: tokenState.accessToken,
+      error: "Refresh token flow returned empty access_token",
+      payload: data,
+    };
+  }
+
+  tokenState.accessToken = newAccessToken;
+  if (newRefreshToken) tokenState.refreshToken = newRefreshToken;
+  tokenState.refreshedAt = new Date().toISOString();
+
+  return {
+    refreshed: true,
+    accessToken: tokenState.accessToken,
+    refreshTokenMasked: maskToken(tokenState.refreshToken),
+    refreshedAt: tokenState.refreshedAt,
+  };
 };
 
 app.post("/api/oa/access-token", async (req, res) => {
@@ -83,6 +146,9 @@ app.post("/api/oa/access-token", async (req, res) => {
 
     const accessToken = pickString(data.access_token);
     const newRefreshToken = pickString(data.refresh_token);
+    if (accessToken) tokenState.accessToken = accessToken;
+    if (newRefreshToken) tokenState.refreshToken = newRefreshToken;
+    tokenState.refreshedAt = new Date().toISOString();
 
     return res.json({
       success: true,
@@ -127,9 +193,11 @@ app.post("/api/get-phone", async (req, res) => {
       });
     }
 
-    // Bắt buộc dùng token backend cấu hình sẵn để tránh nhầm session token từ client.
-    const envAccessToken = String(process.env.ZALO_ACCESS_TOKEN || "").trim();
-    const accessTokenCandidates = envAccessToken ? [envAccessToken] : [];
+    // Ưu tiên token trong memory (đã refresh), fallback env token.
+    const envAccessToken = pickString(process.env.ZALO_ACCESS_TOKEN);
+    const accessTokenCandidates = [tokenState.accessToken, envAccessToken]
+      .filter(Boolean)
+      .filter((v, idx, arr) => arr.indexOf(v) === idx);
 
     if (accessTokenCandidates.length === 0) {
       return res.status(500).json({
@@ -142,17 +210,51 @@ app.post("/api/get-phone", async (req, res) => {
     const diagnostics = [];
     for (const zaloAccessToken of accessTokenCandidates) {
       try {
-        const zaloResponse = await axios.get("https://graph.zalo.me/v2.0/me/info", {
-          params: {
-            access_token: zaloAccessToken,
-            code: token,
-            ...(appId ? { app_id: appId } : {}),
-            ...(secretKey ? { secret_key: secretKey } : {}),
-          },
-          timeout: 10000,
-        });
+        const callDecodePhone = async accessToken =>
+          axios.get("https://graph.zalo.me/v2.0/me/info", {
+            params: {
+              access_token: accessToken,
+              code: token,
+              ...(appId ? { app_id: appId } : {}),
+              ...(secretKey ? { secret_key: secretKey } : {}),
+            },
+            timeout: 10000,
+          });
 
-        const data = zaloResponse.data || {};
+        let zaloResponse = await callDecodePhone(zaloAccessToken);
+        let data = zaloResponse.data || {};
+        let refreshed = false;
+
+        if (isTokenInvalidError(data)) {
+          try {
+            const refreshedToken = await refreshOATokenIfNeeded({
+              appId,
+              secretKey,
+              force: true,
+            });
+
+            diagnostics.push({
+              source: "env",
+              refreshedAttempt: true,
+              refreshedResult: refreshedToken?.error || "ok",
+              refreshedAt: refreshedToken?.refreshedAt || "",
+            });
+
+            if (refreshedToken?.accessToken) {
+              const retry = await callDecodePhone(refreshedToken.accessToken);
+              data = retry.data || {};
+              zaloResponse = retry;
+              refreshed = true;
+            }
+          } catch (refreshErr) {
+            diagnostics.push({
+              source: "env",
+              refreshedAttempt: true,
+              refreshedResult: String(refreshErr?.message || refreshErr),
+            });
+          }
+        }
+
         const phone =
           data.phone ||
           data.number ||
@@ -168,6 +270,7 @@ app.post("/api/get-phone", async (req, res) => {
           hasPhone: !!phone,
           hasAppId: !!appId,
           hasSecretKey: !!secretKey,
+          tokenRefreshed: refreshed,
           upstreamData: data,
         });
 
@@ -195,6 +298,7 @@ app.post("/api/get-phone", async (req, res) => {
           hasPhone: false,
           hasAppId: !!appId,
           hasSecretKey: !!secretKey,
+          tokenRefreshed: false,
           upstreamData: err.response?.data || null,
           message:
             err.response?.data?.error_description ||
